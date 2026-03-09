@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Repos — Sideye{% endblock %}
+
+{% block content %}
+<h1>Repositories</h1>
+
+<form id="add-repo-form" class="add-repo-form">
+    <h3>Add a Repo</h3>
+    <p class="form-hint">Enter your GitHub username and the upstream repo you review PRs on.
+    The bot will auto-detect your local fork clone if it exists under your workspace.</p>
+    <div class="form-row">
+        <input type="text" name="github_user" id="github-user"
+               placeholder="your GitHub username (e.g. maroonay)" required>
+        <input type="text" name="upstream" id="upstream-repo"
+               placeholder="upstream repo (e.g. llm-d/llm-d-inference-scheduler)" required>
+    </div>
+    <button type="submit" class="btn" id="add-btn">Add</button>
+</form>
+
+<h2>Registered ({{ repos|length }})</h2>
+{% for repo in repos %}
+<div class="repo-card">
+    <div class="repo-card-header">
+        <strong>{{ repo.repo_id }}</strong>
+        {% if repo.language %}<span class="badge">{{ repo.language }}</span>{% endif %}
+        {% if repo.get('_upstreams') %}
+        <span class="badge badge-complete">+ upstream</span>
+        {% endif %}
+    </div>
+    <div class="repo-card-body">
+        {% if repo.url %}<p><a href="{{ repo.url }}" target="_blank">{{ repo.url }}</a></p>{% endif %}
+        {% if repo.get('_upstreams') %}
+        <p class="meta">Upstream: {{ repo._upstreams | join(', ') }} — context shared automatically</p>
+        {% endif %}
+        {% if repo.local_path %}
+        <p class="meta">Local clone: <code>{{ repo.local_path }}</code></p>
+        {% else %}
+        <p class="meta warn">No local clone found — context features disabled</p>
+        {% endif %}
+        {% if repo.last_coherence_run %}
+        <p class="meta">Context updated: {{ repo.last_coherence_run[:16] }}</p>
+        {% endif %}
+    </div>
+    <div class="repo-card-actions">
+        {% if repo.local_path %}
+        <button onclick="refreshContext('{{ repo.repo_id }}')" class="btn btn-secondary btn-sm">
+            Refresh Context
+        </button>
+        {% endif %}
+        <button onclick="removeRepo('{{ repo.repo_id }}')" class="btn btn-danger btn-sm">
+            Remove
+        </button>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('add-repo-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('add-btn');
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    const githubUser = document.getElementById('github-user').value.trim();
+    const upstream = document.getElementById('upstream-repo').value.trim();
+
+    const resp = await fetch('/api/repos/auto', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ github_user: githubUser, upstream: upstream }),
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Add';
+
+    if (resp.ok) {
+        location.reload();
+    } else {
+        const err = await resp.json();
+        alert('Failed: ' + (err.detail || JSON.stringify(err)));
+    }
+});
+
+async function refreshContext(repoId) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Refreshing...';
+    const resp = await fetch('/api/coherence/refresh/' + repoId, {method: 'POST'});
+    btn.textContent = resp.ok ? 'Done!' : 'Failed';
+    setTimeout(() => { btn.textContent = 'Refresh Context'; btn.disabled = false; }, 2000);
+}
+
+async function removeRepo(repoId) {
+    if (!confirm('Remove ' + repoId + '?')) return;
+    await fetch('/api/repos/' + repoId, {method: 'DELETE'});
+    location.reload();
+}
+</script>
+{% endblock %}

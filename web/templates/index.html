@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Sideye{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <h1>Review a PR</h1>
+    <form id="review-form" class="review-input">
+        <input type="url" id="pr-url" name="pr_url"
+               placeholder="https://github.com/owner/repo/pull/123"
+               required autocomplete="url">
+        <button type="submit" id="review-btn">Review</button>
+    </form>
+    <div id="review-progress" class="progress-box hidden">
+        <div class="spinner"></div>
+        <div id="progress-text">Starting review...</div>
+    </div>
+</section>
+
+<section class="recent-reviews">
+    <h2>Recent Reviews</h2>
+    {% if reviews %}
+    <table class="review-table">
+        <thead>
+            <tr>
+                <th>PR</th>
+                <th>Repo</th>
+                <th>Author</th>
+                <th>Status</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in reviews %}
+            <tr onclick="location.href='/review/{{ r.review_id }}'">
+                <td><a href="/review/{{ r.review_id }}">#{{ r.pr_number }}: {{ r.pr_title[:60] }}</a></td>
+                <td>{{ r.repo_id }}</td>
+                <td>{{ r.pr_author }}</td>
+                <td><span class="badge badge-{{ r.status }}">{{ r.status }}</span></td>
+                <td>{{ r.created_at[:10] }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No reviews yet. Paste a PR URL above to get started.</p>
+    {% endif %}
+</section>
+
+<section class="repos-overview">
+    <h2>Registered Repos</h2>
+    {% for repo in repos %}
+    {% if repo.repo_id != '__global__' and repo.local_path %}
+    <div class="repo-card">
+        <strong>{{ repo.repo_id }}</strong>
+        {% if repo.language %}<span class="badge">{{ repo.language }}</span>{% endif %}
+        {% if repo.last_coherence_run %}
+        <span class="meta">Context updated: {{ repo.last_coherence_run[:16] }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('review-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const url = document.getElementById('pr-url').value;
+    const btn = document.getElementById('review-btn');
+    const progress = document.getElementById('review-progress');
+    const progressText = document.getElementById('progress-text');
+
+    btn.disabled = true;
+    btn.textContent = 'Reviewing...';
+    progress.classList.remove('hidden');
+    progressText.textContent = 'Fetching PR and running review pipeline...';
+
+    try {
+        const resp = await fetch('/api/review', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({pr_url: url}),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+            throw new Error(data.detail || 'Review failed');
+        }
+
+        if (data.review_id) {
+            window.location.href = '/review/' + data.review_id;
+        } else {
+            progressText.textContent = 'Review complete! ' + JSON.stringify(data.status);
+        }
+    } catch (err) {
+        progressText.textContent = 'Error: ' + err.message;
+        progress.classList.add('error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Review';
+    }
+});
+</script>
+{% endblock %}

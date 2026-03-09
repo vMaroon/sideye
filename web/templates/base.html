@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sideye{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="nav-brand">Sideye</a>
+        <div class="nav-links">
+            <a href="/">Dashboard</a>
+            <a href="/repos">Repos</a>
+            <a href="/settings">Settings</a>
+        </div>
+    </nav>
+    <main class="container {% block body_class %}{% endblock %}">
+        {% block content %}{% endblock %}
+    </main>
+    <script src="/static/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

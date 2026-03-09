@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}{{ agent_type | replace('_', ' ') | title }} — #{{ review.pr_number }} — Sideye{% endblock %}
+
+{% block content %}
+<div class="agent-detail-page">
+    <!-- Header -->
+    <div class="agent-detail-header">
+        <a href="/review/{{ review.review_id }}" class="back-link">← Back to review</a>
+        <h1>
+            {{ agent_type | replace('_', ' ') | title }}
+            <span class="verdict verdict-{{ result.verdict }}">{{ result.verdict | upper }}</span>
+            <span class="confidence">{{ "%.0f" | format(result.confidence * 100) }}%</span>
+        </h1>
+        <div class="agent-detail-meta">
+            <span>PR: <a href="{{ review.pr_url }}" target="_blank">#{{ review.pr_number }} {{ review.pr_title }}</a></span>
+            <span>Execution time: <strong>{{ result.execution_time_ms }}ms</strong></span>
+            <span>Status: <span class="badge badge-{{ result.status }}">{{ result.status }}</span></span>
+        </div>
+    </div>
+
+    <!-- Summary -->
+    <section class="agent-detail-section">
+        <h2>Summary</h2>
+        <div class="summary-box">{{ result.summary }}</div>
+    </section>
+
+    <!-- Parsed Results -->
+    <section class="agent-detail-section">
+        <h2>Parsed Results</h2>
+        <div class="parsed-results">
+            {% set d = result.details %}
+            {% if d is mapping %}
+                {% if agent_type == 'contextual_review' %}
+                    {% if d.get('scope_alignment') %}
+                    <div class="result-card">
+                        <h3>Scope Alignment</h3>
+                        <p>Linked issue: {{ 'Yes' if d.scope_alignment.get('has_linked_issue') else 'No' }} · Scope clear: {{ 'Yes' if d.scope_alignment.get('scope_clear') else 'No' }}</p>
+                        {% if d.scope_alignment.get('concerns') %}<p class="concern">{{ d.scope_alignment.concerns }}</p>{% endif %}
+                    </div>
+                    {% endif %}
+                    {% if d.get('coherence') %}
+                    <div class="result-card">
+                        <h3>Coherence</h3>
+                        <p>Follows standards: {{ 'Yes' if d.coherence.get('follows_standards') else 'No' }}</p>
+                        {% if d.coherence.get('style_issues') %}
+                            {% for issue in d.coherence.style_issues %}<p class="concern">{{ issue }}</p>{% endfor %}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% if d.get('code_quality') %}
+                    <div class="result-card">
+                        <h3>Code Quality</h3>
+                        <p>Readability: {{ d.code_quality.get('readability', '?') }} · Tests: {{ d.code_quality.get('test_coverage', '?') }}</p>
+                        {% if d.code_quality.get('bugs_found') %}
+                            {% for bug in d.code_quality.bugs_found %}
+                            <div class="finding finding-{{ bug.get('severity', 'minor') }}">
+                                <span class="finding-severity">{{ bug.severity }}</span>
+                                <code>{{ bug.get('file', '') }}</code> {{ bug.description }}
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                {% elif agent_type == 'unbiased_review' %}
+                    {% if d.get('bugs') %}
+                    <div class="result-card">
+                        <h3>Bugs Found ({{ d.bugs | length }})</h3>
+                        {% for bug in d.bugs %}
+                        <div class="finding finding-{{ bug.get('severity', 'major') }}">
+                            <span class="finding-severity">{{ bug.severity }}</span>
+                            <code>{{ bug.get('file', '') }}</code> {{ bug.description }}
+                            {% if bug.get('suggestion') %}<p class="suggestion">→ {{ bug.suggestion }}</p>{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if d.get('security_concerns') %}
+                    <div class="result-card">
+                        <h3>Security Concerns</h3>
+                        {% for sc in d.security_concerns %}
+                        <div class="finding finding-{{ sc.get('severity', 'major') }}">
+                            <span class="finding-severity">{{ sc.severity }}</span>
+                            <code>{{ sc.get('file', '') }}</code> {{ sc.description }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if d.get('test_assessment') %}
+                    <div class="result-card">
+                        <h3>Test Assessment</h3>
+                        <p>Has tests: {{ 'Yes' if d.test_assessment.get('has_tests') else 'No' }}</p>
+                        {% if d.test_assessment.get('gaps') %}
+                            <p>Gaps: {{ d.test_assessment.gaps | join(', ') }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                {% elif agent_type == 'synthesis' %}
+                    {% if d.get('agreement_analysis') %}
+                    <div class="result-card">
+                        <h3>Agent Agreement</h3>
+                        <p>{{ d.agreement_analysis.get('reconciliation', '') }}</p>
+                        <p>Contextual: {{ d.agreement_analysis.get('contextual_verdict', '?') }} · Unbiased: {{ d.agreement_analysis.get('unbiased_verdict', '?') }}</p>
+                    </div>
+                    {% endif %}
+                    {% if d.get('key_findings') %}
+                    <div class="result-card">
+                        <h3>Key Findings</h3>
+                        {% for f in d.key_findings %}
+                        <div class="finding finding-{{ f.get('severity', 'minor') }}">
+                            <span class="finding-severity">{{ f.get('severity', 'info') }}</span>
+                            <span class="finding-source">[{{ f.get('source', '?') }}]</span>
+                            {{ f.finding }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if d.get('blind_spots') %}
+                    <div class="result-card">
+                        <h3>Blind Spots</h3>
+                        {% if d.blind_spots.get('contextual_missed') %}
+                            <p><strong>Contextual missed:</strong> {{ d.blind_spots.contextual_missed | join('; ') }}</p>
+                        {% endif %}
+                        {% if d.blind_spots.get('unbiased_missed') %}
+                            <p><strong>Unbiased missed:</strong> {{ d.blind_spots.unbiased_missed | join('; ') }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                {% elif agent_type == 'injection_scanner' %}
+                    <div class="result-card">
+                        <h3>Scan Result</h3>
+                        <p>Suspicious: {{ 'Yes' if d.get('is_suspicious') else 'No' }} · Severity: {{ d.get('severity', 'none') }}</p>
+                        {% if d.get('heuristic_flags') %}
+                            <h4>Heuristic Flags</h4>
+                            {% for f in d.heuristic_flags %}
+                            <div class="finding finding-{{ f.get('severity', 'warning') }}">{{ f.type }}: {{ f.matches[:1] }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                <!-- Detailed comments for any agent that has them -->
+                {% if d.get('detailed_comments') %}
+                <div class="result-card">
+                    <h3>Detailed Comments ({{ d.detailed_comments | length }})</h3>
+                    {% for c in d.detailed_comments %}
+                    <div class="finding finding-{{ c.get('severity', 'minor') }}">
+                        <span class="finding-severity">{{ c.get('severity', 'info') }}</span>
+                        <code>{{ c.get('file', '') }}</code>
+                        {% if c.get('line_hint') %}<span class="meta">{{ c.line_hint }}</span>{% endif %}
+                        <p>{{ c.comment }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Prompt Sent -->
+    {% if result.prompt_sent %}
+    <section class="agent-detail-section">
+        <h2>Prompt Sent to Claude</h2>
+        <details open>
+            <summary>System + User prompt ({{ result.prompt_sent | length }} chars)</summary>
+            <pre class="prompt-display">{{ result.prompt_sent }}</pre>
+        </details>
+    </section>
+    {% endif %}
+
+    <!-- Raw JSON Output -->
+    <section class="agent-detail-section">
+        <h2>Raw JSON Output</h2>
+        <details>
+            <summary>Full details JSON</summary>
+            <pre class="raw-output">{{ result.details | tojson(indent=2) }}</pre>
+        </details>
+    </section>
+
+    {% if agent_type == 'contextual_review' and context %}
+    <!-- Context Snapshot (for contextual agent) -->
+    <section class="agent-detail-section">
+        <h2>Repository Context Used</h2>
+        <div class="context-info">
+            {% if context.get('file_tree') %}
+            <div class="result-card">
+                <h3>Codebase Structure</h3>
+                <p>Total files: {{ context.file_tree.get('total_files', '?') }}</p>
+                {% if context.file_tree.get('languages') %}
+                <p>Languages: {{ context.file_tree.languages | tojson }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if context.get('coding_standards') %}
+            <div class="result-card">
+                <h3>Coding Standards</h3>
+                <p>Language: {{ context.coding_standards.get('language', '?') }}</p>
+                <p>Linters: {{ context.coding_standards.get('linters', []) | join(', ') or 'none' }}</p>
+                <p>Test framework: {{ context.coding_standards.get('test_framework', '?') }}</p>
+            </div>
+            {% endif %}
+            {% if context.get('design_docs') %}
+            <div class="result-card">
+                <h3>Design Docs ({{ context.design_docs | length }})</h3>
+                {% for doc in context.design_docs[:10] %}
+                <p><code>{{ doc.path }}</code> — {{ doc.title }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,686 @@
+/* Sideye — GitHub Overlay Styles */
+
+/* ── Verdict Badge (in PR header) ────────────────────────────── */
+.prbot-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  margin-left: 8px;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+.prbot-badge-approve {
+  background: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+  border: 1px solid rgba(63, 185, 80, 0.3);
+}
+.prbot-badge-changes {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+  border: 1px solid rgba(248, 81, 73, 0.3);
+}
+.prbot-badge-comment {
+  background: rgba(210, 153, 34, 0.15);
+  color: #d29922;
+  border: 1px solid rgba(210, 153, 34, 0.3);
+}
+.prbot-badge-none {
+  background: rgba(139, 148, 158, 0.1);
+  color: #8b949e;
+  border: 1px solid rgba(139, 148, 158, 0.2);
+  font-weight: 400;
+  font-size: 11px;
+}
+
+/* Run Review button badge */
+.prbot-badge-run {
+  background: rgba(88, 166, 255, 0.12);
+  color: #58a6ff;
+  border: 1px solid rgba(88, 166, 255, 0.3);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.prbot-badge-run:hover {
+  background: rgba(88, 166, 255, 0.22);
+  border-color: rgba(88, 166, 255, 0.5);
+}
+.prbot-run-icon {
+  font-size: 9px;
+  line-height: 1;
+}
+
+/* Running / progress badge */
+.prbot-badge-running {
+  background: rgba(210, 153, 34, 0.12);
+  color: #d29922;
+  border: 1px solid rgba(210, 153, 34, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+}
+.prbot-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(210, 153, 34, 0.3);
+  border-top-color: #d29922;
+  border-radius: 50%;
+  animation: prbot-spin 0.8s linear infinite;
+}
+@keyframes prbot-spin {
+  to { transform: rotate(360deg); }
+}
+.prbot-spinner-text {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Error badge */
+.prbot-badge-error {
+  background: rgba(248, 81, 73, 0.12);
+  color: #f85149;
+  border: 1px solid rgba(248, 81, 73, 0.3);
+  cursor: pointer;
+}
+.prbot-badge-error:hover {
+  background: rgba(248, 81, 73, 0.22);
+}
+
+/* ── Side Panel ──────────────────────────────────────────────── */
+.prbot-panel {
+  position: fixed;
+  top: 60px;
+  right: 16px;
+  width: 400px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 9999;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  color: #c9d1d9;
+  font-size: 14px;
+  line-height: 1.5;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.prbot-panel-hidden {
+  transform: translateX(420px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.prbot-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #30363d;
+}
+.prbot-panel-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.prbot-panel-close {
+  background: none;
+  border: none;
+  color: #8b949e;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.prbot-panel-close:hover {
+  color: #c9d1d9;
+}
+
+.prbot-panel-verdict {
+  padding: 12px 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.prbot-confidence {
+  color: #8b949e;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.prbot-panel-summary {
+  padding: 8px 14px 14px;
+  font-size: 14px;
+  color: #c9d1d9;
+  line-height: 1.5;
+}
+
+.prbot-panel-section {
+  padding: 10px 14px;
+  border-top: 1px solid #30363d;
+}
+.prbot-panel-section h4 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8b949e;
+  margin-bottom: 8px;
+}
+
+/* Findings */
+.prbot-finding {
+  padding: 6px 8px;
+  margin: 4px 0;
+  border-left: 2px solid #30363d;
+  font-size: 13px;
+  color: #c9d1d9;
+}
+.prbot-finding-critical {
+  border-left-color: #f85149;
+}
+.prbot-finding-major {
+  border-left-color: #db6d28;
+}
+.prbot-finding-minor {
+  border-left-color: #d29922;
+}
+.prbot-finding-nit {
+  border-left-color: #8b949e;
+}
+.prbot-finding-sev {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-right: 6px;
+  opacity: 0.7;
+}
+
+/* Agent rows */
+.prbot-agent-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 12px;
+}
+.prbot-agent-verdict {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+/* Suggested comment */
+.prbot-comment {
+  background: #0d1117;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: #c9d1d9;
+}
+.prbot-copy-btn {
+  margin-top: 6px;
+  padding: 4px 12px;
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-size: 11px;
+  cursor: pointer;
+}
+.prbot-copy-btn:hover {
+  background: #30363d;
+}
+
+/* Footer */
+.prbot-panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid #30363d;
+  font-size: 11px;
+}
+.prbot-link {
+  color: #58a6ff;
+  text-decoration: none;
+}
+.prbot-link:hover {
+  text-decoration: underline;
+}
+.prbot-comment-count {
+  color: #8b949e;
+}
+.prbot-token-count {
+  color: #8b949e;
+  font-size: 11px;
+  margin-left: 8px;
+}
+
+/* Mode selector on badge */
+.prbot-mode-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255,255,255,0.08);
+  color: inherit;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-left: 2px;
+}
+.prbot-mode-select:hover {
+  background: rgba(255,255,255,0.15);
+}
+.prbot-mode-select option {
+  background: #161b22;
+  color: #c9d1d9;
+}
+
+/* ── Inline Comments (overlay on GitHub diff) ─────────────────── */
+#prbot-inline-overlays {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 99;
+}
+.prbot-inline-row {
+  pointer-events: auto;
+  background: #0d1117;
+  border-top: 1px solid #30363d;
+  border-bottom: 1px solid #30363d;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  border-radius: 0;
+  box-sizing: border-box;
+}
+.prbot-inline-cell {
+  padding: 0 !important;
+}
+
+.prbot-inline {
+  margin: 0;
+  padding: 8px 12px 8px 16px;
+  border-radius: 0;
+  border-left: 3px solid #30363d;
+  background: #0d1117;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #c9d1d9;
+}
+.prbot-inline-critical {
+  border-left-color: #f85149;
+  background: #130d0d;
+}
+.prbot-inline-major {
+  border-left-color: #db6d28;
+  background: #120e0a;
+}
+.prbot-inline-minor {
+  border-left-color: #d29922;
+  background: #11100c;
+}
+.prbot-inline-nit {
+  border-left-color: #8b949e;
+  background: #0d1117;
+}
+.prbot-inline-info {
+  border-left-color: #58a6ff;
+  background: #0c1018;
+}
+
+.prbot-inline-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.prbot-inline-sev {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.prbot-inline-agent {
+  font-size: 12px;
+  color: #58a6ff;
+  font-weight: 500;
+}
+.prbot-inline-body {
+  color: #c9d1d9;
+}
+.prbot-inline-suggestion {
+  margin-top: 4px;
+  color: #8b949e;
+  font-size: 11px;
+}
+
+/* Comments on existing (context) code */
+.prbot-inline-on-context {
+  border-left-width: 2px;
+}
+.prbot-inline-on-context .prbot-inline-body {
+  color: #c9d1d9;
+}
+.prbot-inline-ctx-label {
+  font-size: 9px;
+  color: #8b949e;
+  background: rgba(255,255,255,0.04);
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+/* Comment type labels — Review (postable) vs Note (internal) */
+.prbot-inline-type-review {
+  font-size: 9px;
+  color: #58a6ff;
+  background: rgba(88, 166, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.prbot-inline-type-note {
+  font-size: 9px;
+  color: #8b949e;
+  background: rgba(139, 148, 158, 0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+/* Note-type inline comments — subtler appearance, no action buttons */
+.prbot-inline-note {
+  border-left-color: #484f58 !important;
+  background: #0e1117;
+}
+.prbot-inline-note .prbot-inline-body {
+  color: #8b949e;
+  font-style: italic;
+}
+
+/* ── Inline Comment Toolbar (edit + select) ───────────────────── */
+.prbot-inline-toolbar {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.prbot-btn-edit {
+  background: none;
+  border: 1px solid transparent;
+  color: #8b949e;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.prbot-btn-edit:hover {
+  color: #c9d1d9;
+  border-color: #30363d;
+  background: rgba(255,255,255,0.04);
+}
+.prbot-btn-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: #8b949e;
+  cursor: pointer;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.prbot-select-cb {
+  cursor: pointer;
+  accent-color: #58a6ff;
+}
+
+/* Selected state */
+.prbot-inline-selected {
+  border-left-color: #58a6ff !important;
+  background: #0e1520 !important;
+}
+
+/* Posted state */
+.prbot-inline-posted {
+  border-left-color: #3fb950 !important;
+  opacity: 0.7;
+}
+.prbot-inline-posted .prbot-inline-body {
+  color: #8b949e;
+}
+.prbot-posted-badge {
+  font-size: 10px;
+  color: #3fb950;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* ── Inline Edit Mode ─────────────────────────────────────────── */
+.prbot-inline-editing .prbot-inline-toolbar {
+  display: none;
+}
+.prbot-edit-textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.prbot-edit-textarea:focus {
+  outline: none;
+  border-color: #58a6ff;
+}
+.prbot-edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.prbot-edit-save, .prbot-edit-cancel {
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  border: 1px solid #30363d;
+}
+.prbot-edit-save {
+  background: #238636;
+  color: #fff;
+  border-color: #238636;
+}
+.prbot-edit-save:hover {
+  background: #2ea043;
+}
+.prbot-edit-cancel {
+  background: #21262d;
+  color: #c9d1d9;
+}
+.prbot-edit-cancel:hover {
+  background: #30363d;
+}
+
+/* ── Floating Submit Review Bar ───────────────────────────────── */
+.prbot-submit-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  background: #161b22;
+  border-top: 1px solid #30363d;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  color: #c9d1d9;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.3);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.prbot-submit-hidden {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.prbot-submit-count {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.prbot-submit-verdict {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.prbot-submit-btn {
+  background: #238636;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.prbot-submit-btn:hover {
+  background: #2ea043;
+}
+.prbot-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.prbot-submit-status {
+  font-size: 12px;
+  margin-left: auto;
+}
+.prbot-submit-ok {
+  color: #3fb950;
+}
+.prbot-submit-err {
+  color: #f85149;
+}
+
+/* ── PR Brief ────────────────────────────────────────────────── */
+.prbot-brief {
+  border-top: none;
+}
+.prbot-brief-purpose {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e6edf3;
+  margin: 0 0 6px;
+  line-height: 1.4;
+}
+.prbot-brief-changes {
+  margin: 4px 0 6px 16px;
+  padding: 0;
+  font-size: 13px;
+  color: #c9d1d9;
+  line-height: 1.5;
+}
+.prbot-brief-changes li {
+  margin: 2px 0;
+}
+.prbot-brief-scope {
+  font-size: 12px;
+  color: #8b949e;
+  margin: 4px 0 2px;
+}
+.prbot-brief-alignment {
+  font-size: 12px;
+  color: #58a6ff;
+  margin: 4px 0 0;
+  padding: 4px 8px;
+  background: rgba(88, 166, 255, 0.06);
+  border-radius: 4px;
+  border-left: 2px solid #58a6ff;
+}
+
+/* ── Finding Reason ──────────────────────────────────────────── */
+.prbot-finding-reason {
+  font-size: 12px;
+  color: #8b949e;
+  margin-top: 3px;
+  font-style: italic;
+}
+
+/* ── Quick Feedback ──────────────────────────────────────────── */
+.prbot-quick-feedback {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.prbot-feedback-label {
+  color: #8b949e;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.prbot-fb-btn, .prbot-fb-cal {
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.prbot-fb-btn:hover, .prbot-fb-cal:hover {
+  background: #30363d;
+}
+.prbot-fb-active {
+  background: rgba(88, 166, 255, 0.15);
+  border-color: #58a6ff;
+  color: #58a6ff;
+}
+.prbot-feedback-sep {
+  color: #30363d;
+}
+.prbot-feedback-status {
+  font-size: 11px;
+  margin-left: 4px;
+}
+.prbot-fb-ok {
+  color: #3fb950;
+}
+.prbot-fb-err {
+  color: #f85149;
+}
+
+/* ── Utility ─────────────────────────────────────────────────── */
+.prbot-hidden {
+  display: none !important;
+}

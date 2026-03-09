@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Settings — Sideye{% endblock %}
+
+{% block content %}
+<h1>Settings</h1>
+
+<section class="settings-section">
+    <h2>Configuration</h2>
+    <p>Edit <code>.env</code> in the project root to change API keys, model, and schedule.</p>
+    <div class="config-display">
+        <div class="config-item">
+            <span class="config-label">GitHub Token</span>
+            <span class="config-value" id="gh-token-status">Checking...</span>
+        </div>
+        <div class="config-item">
+            <span class="config-label">Claude Backend</span>
+            <span class="config-value" id="backend-status">Checking...</span>
+        </div>
+        <div class="config-item">
+            <span class="config-label">Claude Model</span>
+            <span class="config-value" id="model-name">Loading...</span>
+        </div>
+    </div>
+</section>
+
+<section class="settings-section">
+    <h2>Your Reviewer Profile</h2>
+    <p>Mined from your GitHub review history across all repos — this is how the bot learns your style.
+    <button class="btn btn-secondary btn-sm" id="mine-btn" onclick="runMine()">Re-mine</button></p>
+    <div id="global-profile">Loading...</div>
+</section>
+
+<section class="settings-section">
+    <h2>Review Feedback</h2>
+    <p>The bot also refines its understanding from your feedback on its reviews.</p>
+    <div id="feedback-summary">Loading...</div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Check config status
+fetch('/api/config/status').then(r => r.json()).then(data => {
+    document.getElementById('gh-token-status').textContent = data.github_token ? 'Set' : 'Missing';
+    document.getElementById('backend-status').textContent = data.backend || 'Unknown';
+    document.getElementById('model-name').textContent = data.model || '?';
+}).catch(() => {
+    document.getElementById('gh-token-status').textContent = 'Error checking';
+});
+
+// Load global mined profile
+fetch('/api/learning/profile').then(r => r.json()).then(data => {
+    const el = document.getElementById('global-profile');
+    if (data.status === 'not_mined') {
+        el.innerHTML = '<p class="empty-state">No profile yet. Click "Re-mine" to analyze your GitHub review history.</p>';
+        return;
+    }
+    const p = data.profile;
+    if (!p) { el.textContent = 'No data'; return; }
+
+    let html = '';
+    if (p.summary) html += '<p>' + p.summary + '</p>';
+    if (p.review_style) {
+        const s = p.review_style;
+        html += '<p><strong>Style:</strong> ' + [s.strictness, s.detail_level, s.tone].filter(Boolean).join(' · ') + '</p>';
+        if (s.focus_areas && s.focus_areas.length) html += '<p><strong>Focus areas:</strong> ' + s.focus_areas.join(', ') + '</p>';
+        if (s.lets_slide && s.lets_slide.length) html += '<p><strong>Lets slide:</strong> ' + s.lets_slide.join(', ') + '</p>';
+    }
+    if (p.technical_preferences) {
+        const t = p.technical_preferences;
+        const cares = [];
+        if (t.cares_about_architecture) cares.push('architecture');
+        if (t.cares_about_naming) cares.push('naming');
+        if (t.cares_about_tests) cares.push('tests');
+        if (t.cares_about_docs) cares.push('docs');
+        if (t.cares_about_performance) cares.push('performance');
+        if (t.flags_duplication) cares.push('duplication');
+        if (cares.length) html += '<p><strong>Cares about:</strong> ' + cares.join(', ') + '</p>';
+        if (t.common_suggestions && t.common_suggestions.length) {
+            html += '<p><strong>Common suggestions:</strong> ' + t.common_suggestions.join(', ') + '</p>';
+        }
+    }
+    if (p.approval_criteria) {
+        const a = p.approval_criteria;
+        if (a.approval_threshold) html += '<p><strong>Approves when:</strong> ' + a.approval_threshold + '</p>';
+        if (a.blocking_issues && a.blocking_issues.length) html += '<p><strong>Blocks on:</strong> ' + a.blocking_issues.join(', ') + '</p>';
+    }
+    if (p._stats) {
+        html += '<p class="meta">Based on ' + p._stats.total_reviews + ' reviews · Approval rate: ' + p._stats.approval_rate;
+        if (p._repos_covered) html += ' · ' + p._repos_covered.length + ' repos';
+        html += '</p>';
+    }
+    if (data.mined_at) {
+        html += '<p class="meta">Last mined: ' + data.mined_at.slice(0, 16) + '</p>';
+    }
+    el.innerHTML = html;
+}).catch(err => {
+    document.getElementById('global-profile').textContent = 'Error loading profile';
+});
+
+// Load feedback summary
+fetch('/api/learning/feedback-summary').then(r => r.ok ? r.json() : null).then(data => {
+    const el = document.getElementById('feedback-summary');
+    if (!data || !data.total) {
+        el.innerHTML = '<p class="empty-state">No feedback yet. Review some PRs and give thumbs up/down to teach the bot.</p>';
+        return;
+    }
+    el.innerHTML = '<p>' + data.total + ' feedback entries across ' + data.review_count + ' reviews</p>';
+}).catch(() => {
+    document.getElementById('feedback-summary').innerHTML = '<p class="empty-state">No feedback yet.</p>';
+});
+
+async function runMine() {
+    const btn = document.getElementById('mine-btn');
+    btn.disabled = true;
+    btn.textContent = 'Mining...';
+    try {
+        const resp = await fetch('/api/learning/mine', {method: 'POST'});
+        const data = await resp.json();
+        if (resp.ok) {
+            btn.textContent = 'Done!';
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            btn.textContent = 'Failed';
+            alert(data.detail || JSON.stringify(data));
+        }
+    } catch (e) {
+        btn.textContent = 'Error';
+        alert(e.message);
+    }
+}
+</script>
+{% endblock %}

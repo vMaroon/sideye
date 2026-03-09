@@ -1,0 +1,631 @@
+{% extends "base.html" %}
+{% block title %}Review #{{ review.pr_number }} — Sideye{% endblock %}
+{% block body_class %}review-fullwidth{% endblock %}
+
+{% block content %}
+<!-- Compact top bar -->
+<div class="review-topbar">
+    <div class="topbar-left">
+        <a href="/" class="back-link">←</a>
+        <a href="{{ review.pr_url }}" target="_blank" class="topbar-pr">
+            #{{ review.pr_number }}: {{ review.pr_title }}
+        </a>
+    </div>
+    <div class="topbar-center">
+        {% if results.get('synthesis') %}
+        <span class="verdict-badge verdict-{{ results['synthesis']['verdict'] }}">
+            {{ results['synthesis']['verdict'] | upper }}
+        </span>
+        <span class="confidence">{{ "%.0f" | format(results['synthesis']['confidence'] * 100) }}%</span>
+        {% endif %}
+        {% if review.status == 'flagged' %}
+        <span class="verdict-badge verdict-flag">FLAGGED</span>
+        {% endif %}
+    </div>
+    <div class="topbar-right">
+        <span class="topbar-meta">{{ review.pr_author }} · {{ review.repo_id }} · {{ review.created_at[:16] }}</span>
+        <button onclick="rerunReview()" class="btn btn-secondary btn-sm" id="rerun-btn" title="Re-run review">⟳</button>
+        <button onclick="deleteReview()" class="btn btn-danger btn-sm" id="delete-btn" title="Delete review">✕</button>
+    </div>
+</div>
+
+{% if results.get('synthesis') %}
+<div class="topbar-summary">{{ results['synthesis']['summary'] }}</div>
+{% endif %}
+
+<!-- PR Context panel (collapsible) -->
+<div class="pr-context" id="pr-context">
+    <button class="pr-context-toggle" onclick="document.getElementById('pr-context-body').classList.toggle('hidden'); this.querySelector('.toggle-icon').textContent = this.querySelector('.toggle-icon').textContent === '▸' ? '▾' : '▸'">
+        <span class="toggle-icon">▸</span>
+        PR Context
+        <span class="pr-context-pills">
+            <span class="ctx-pill">{{ review.pr_author }}</span>
+            <span class="ctx-pill">{{ review.branch_name or '?' }} → main</span>
+            {% if pr_data and pr_data.get('linked_issues') %}
+            <span class="ctx-pill ctx-pill-accent">{{ pr_data.linked_issues | length }} issue{{ 's' if pr_data.linked_issues | length != 1 }}</span>
+            {% endif %}
+        </span>
+    </button>
+    <div class="pr-context-body hidden" id="pr-context-body">
+        {% if pr_data and pr_data.get('pr_description') %}
+        <div class="pr-context-section">
+            <h4>Description</h4>
+            <div class="pr-description">{{ pr_data.pr_description[:2000] }}</div>
+        </div>
+        {% endif %}
+
+        {% if pr_data and pr_data.get('linked_issues') %}
+        <div class="pr-context-section">
+            <h4>Linked Issues</h4>
+            {% for issue in pr_data.linked_issues %}
+            <div class="pr-issue">
+                <span class="pr-issue-num">#{{ issue.get('number', '?') }}</span>
+                <span>{{ issue.get('title', '') }}</span>
+                <span class="badge badge-{{ 'complete' if issue.get('state') == 'open' else 'pending' }}">{{ issue.get('state', '?') }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="pr-context-section pr-context-meta">
+            <span>Repo: <strong>{{ review.repo_id }}</strong></span>
+            <span>Branch: <strong>{{ review.branch_name or '?' }}</strong></span>
+            <span>Reviewed: <strong>{{ review.created_at[:16] }}</strong></span>
+            {% if pr_data and pr_data.get('files_changed') %}
+            <span>Files: <strong>{{ pr_data.files_changed | length }}</strong></span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if review.status == 'flagged' %}
+<div class="alert alert-danger">
+    <h2>Injection Detected</h2>
+    <p>The injection scanner flagged suspicious content in this PR.
+       Review was halted before any code analysis agents ran.</p>
+    {% if results.get('injection_scanner') %}
+    <pre>{{ results['injection_scanner']['summary'] }}</pre>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Main body: diff viewer -->
+<div class="diff-layout">
+    <nav class="diff-tree" id="diff-tree">
+        <div class="diff-tree-loading">Loading...</div>
+    </nav>
+    <div class="diff-pane" id="diff-pane">
+        <div class="diff-loading">Loading diff...</div>
+    </div>
+</div>
+
+<!-- Tab bar below diff -->
+<div class="review-tabs">
+    <div class="tab-bar">
+        <button class="tab-btn active" data-tab="tab-comment">Comment</button>
+        <button class="tab-btn" data-tab="tab-findings">Findings</button>
+        <button class="tab-btn" data-tab="tab-agents">Agents</button>
+        {% if review.status == 'complete' %}
+        <button class="tab-btn" data-tab="tab-feedback">Feedback</button>
+        {% endif %}
+    </div>
+
+    <!-- Tab: Comment -->
+    <div class="tab-content active" id="tab-comment">
+        {% set syn = results.get('synthesis', {}).get('details', {}) %}
+        {% if syn and syn.get('suggested_review_comment') %}
+        <div class="tab-panel">
+            <pre class="review-comment">{{ syn['suggested_review_comment'] }}</pre>
+            <button onclick="copyComment(this)" class="btn btn-secondary btn-sm">Copy to clipboard</button>
+        </div>
+        {% else %}
+        <p class="empty-state">No suggested comment available.</p>
+        {% endif %}
+    </div>
+
+    <!-- Tab: Findings -->
+    <div class="tab-content" id="tab-findings">
+        {% set syn = results.get('synthesis', {}).get('details', {}) %}
+        {% if syn %}
+            {% if syn.get('agreement_analysis') %}
+            <div class="analysis-card">
+                <h3>Agent Agreement</h3>
+                <p>{{ syn['agreement_analysis'].get('reconciliation', '') }}</p>
+                <div class="agent-verdicts">
+                    <span class="verdict-pill verdict-{{ results.get('contextual_review', {}).get('verdict', 'comment') }}">
+                        Contextual: {{ results.get('contextual_review', {}).get('verdict', '?') }}
+                    </span>
+                    <span class="verdict-pill verdict-{{ results.get('unbiased_review', {}).get('verdict', 'comment') }}">
+                        Unbiased: {{ results.get('unbiased_review', {}).get('verdict', '?') }}
+                    </span>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if syn.get('key_findings') %}
+            <div class="analysis-card">
+                <h3>Key Findings</h3>
+                {% for f in syn['key_findings'] %}
+                <div class="finding finding-{{ f.get('severity', 'minor') }}">
+                    <span class="finding-severity">{{ f.get('severity', 'info') }}</span>
+                    <span class="finding-source">[{{ f.get('source', '?') }}]</span>
+                    {{ f.get('finding', '') }}
+                    {% if f.get('file') %}<code>{{ f['file'] }}</code>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if syn.get('blind_spots') %}
+            <div class="analysis-card">
+                <h3>Blind Spots</h3>
+                {% if syn.blind_spots.get('contextual_missed') %}
+                <p><strong>Contextual missed:</strong> {{ syn.blind_spots.contextual_missed | join('; ') }}</p>
+                {% endif %}
+                {% if syn.blind_spots.get('unbiased_missed') %}
+                <p><strong>Unbiased missed:</strong> {{ syn.blind_spots.unbiased_missed | join('; ') }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% else %}
+        <p class="empty-state">No findings available.</p>
+        {% endif %}
+    </div>
+
+    <!-- Tab: Agents -->
+    <div class="tab-content" id="tab-agents">
+        <div class="agents-grid">
+            {% for r in results_list %}
+            <a href="/review/{{ review.review_id }}/agent/{{ r.agent_type }}" class="agent-card">
+                <div class="agent-card-header">
+                    <span class="agent-card-name">{{ r.agent_type | replace('_', ' ') | title }}</span>
+                    <span class="verdict-pill verdict-{{ r.verdict or 'comment' }}">{{ r.verdict or r.status }}</span>
+                </div>
+                <div class="agent-card-body">
+                    <p>{{ r.summary[:120] }}{% if r.summary|length > 120 %}...{% endif %}</p>
+                </div>
+                <div class="agent-card-footer">
+                    <span class="meta">{{ r.execution_time_ms }}ms</span>
+                    <span class="confidence">{{ "%.0f" | format(r.confidence * 100) }}%</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Tab: Feedback -->
+    {% if review.status == 'complete' %}
+    <div class="tab-content" id="tab-feedback">
+        <form id="feedback-form" class="feedback-form">
+            <div class="form-group">
+                <label>Was the verdict correct?</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="verdict_correct" value="true"> Yes</label>
+                    <label><input type="radio" name="verdict_correct" value="false"> No</label>
+                </div>
+            </div>
+            <div class="form-group" id="correct-verdict-group" style="display:none">
+                <label>What should it have been?</label>
+                <select name="correct_verdict">
+                    <option value="">--</option>
+                    <option value="approve">Approve</option>
+                    <option value="request_changes">Request Changes</option>
+                    <option value="comment">Comment Only</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Severity assessment</label>
+                <select name="severity_assessment">
+                    <option value="about_right">About right</option>
+                    <option value="too_strict">Too strict</option>
+                    <option value="too_lenient">Too lenient</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Tone</label>
+                <select name="tone_assessment">
+                    <option value="appropriate">Appropriate</option>
+                    <option value="too_harsh">Too harsh</option>
+                    <option value="too_soft">Too soft</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Missed issues (optional)</label>
+                <textarea name="missed_issues" rows="2" placeholder="Anything the review should have caught..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>False positives (optional)</label>
+                <textarea name="false_positives" rows="2" placeholder="Issues flagged that were fine..."></textarea>
+            </div>
+            <button type="submit" class="btn">Submit Feedback</button>
+            <div id="feedback-result" class="hidden"></div>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Tab Switching ───────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+});
+
+// Default to Comment tab if it has content, else Findings
+(function() {
+    const commentTab = document.getElementById('tab-comment');
+    if (commentTab && commentTab.querySelector('.empty-state')) {
+        // Switch to Findings
+        document.querySelector('.tab-btn[data-tab="tab-findings"]')?.click();
+    }
+})();
+
+// ── Diff Viewer ─────────────────────────────────────────────────
+(async function loadDiff() {
+    const tree = document.getElementById('diff-tree');
+    const pane = document.getElementById('diff-pane');
+
+    try {
+        const resp = await fetch('/api/review/{{ review.review_id }}/diff');
+        if (!resp.ok) throw new Error('Failed to load diff');
+        const data = await resp.json();
+
+        if (!data.diff) {
+            tree.innerHTML = '';
+            pane.innerHTML = '<p class="empty-state">No diff available.</p>';
+            return;
+        }
+
+        const files = parseDiff(data.diff);
+        const comments = data.comments || [];
+
+        // Index comments by normalized filename
+        const commentsByFile = {};
+        comments.forEach(c => {
+            const fname = normalizeFilename(c.file);
+            if (!commentsByFile[fname]) commentsByFile[fname] = [];
+            commentsByFile[fname].push(c);
+        });
+
+        // Build file tree
+        tree.innerHTML = '';
+        const treeUl = document.createElement('ul');
+        treeUl.className = 'diff-tree-list';
+        files.forEach((file, idx) => {
+            const fname = normalizeFilename(file.newName || file.oldName);
+            const li = document.createElement('li');
+            li.className = 'diff-tree-item';
+
+            const fc = resolveFileComments(fname, commentsByFile);
+            const commentCount = fc.length;
+
+            let fa = 0, fd = 0;
+            file.hunks.forEach(h => h.lines.forEach(l => {
+                if (l.type === 'add') fa++;
+                if (l.type === 'del') fd++;
+            }));
+
+            let badge = '';
+            if (file.isNew) badge = '<span class="tree-badge tree-badge-new">A</span>';
+            else if (file.isDeleted) badge = '<span class="tree-badge tree-badge-del">D</span>';
+            else badge = '<span class="tree-badge tree-badge-mod">M</span>';
+
+            const commentBadge = commentCount > 0
+                ? `<span class="tree-comment-count">${commentCount}</span>` : '';
+
+            li.innerHTML = `<a href="#diff-file-${idx}" class="diff-tree-link">${badge}<span class="tree-fname">${escHtml(fname.split('/').pop())}</span><span class="tree-stats"><span class="tree-add">+${fa}</span><span class="tree-del">-${fd}</span></span>${commentBadge}</a>`;
+            li.querySelector('a').title = fname;
+            treeUl.appendChild(li);
+        });
+        tree.appendChild(treeUl);
+
+        // Build diff pane
+        pane.innerHTML = '';
+        files.forEach((file, idx) => {
+            const fname = normalizeFilename(file.newName || file.oldName);
+            const fc = resolveFileComments(fname, commentsByFile);
+            pane.appendChild(renderFile(file, fc, idx));
+        });
+
+    } catch (err) {
+        pane.innerHTML = '<p class="empty-state">Could not load diff: ' + err.message + '</p>';
+    }
+})();
+
+function normalizeFilename(f) {
+    return (f || '').replace(/^[ab]\//, '').trim();
+}
+
+function resolveFileComments(fname, commentsByFile) {
+    if (commentsByFile[fname]) return commentsByFile[fname];
+    const basename = fname.split('/').pop();
+    for (const k of Object.keys(commentsByFile)) {
+        if (k === basename || fname.endsWith(k) || k.endsWith(basename)) {
+            return commentsByFile[k];
+        }
+    }
+    return [];
+}
+
+function parseDiff(text) {
+    const files = [];
+    const lines = text.split('\n');
+    let current = null;
+    let hunk = null;
+    let oldLine = 0, newLine = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        if (line.startsWith('diff --git')) {
+            if (current) files.push(current);
+            const match = line.match(/diff --git a\/(.*?) b\/(.*)/);
+            current = {
+                oldName: match ? match[1] : '',
+                newName: match ? match[2] : '',
+                hunks: [],
+                isBinary: false, isNew: false, isDeleted: false,
+            };
+            hunk = null;
+            continue;
+        }
+        if (!current) continue;
+        if (line.startsWith('Binary files')) { current.isBinary = true; continue; }
+        if (line.startsWith('new file')) { current.isNew = true; continue; }
+        if (line.startsWith('deleted file')) { current.isDeleted = true; continue; }
+        if (line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++')) continue;
+
+        const hunkMatch = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)/);
+        if (hunkMatch) {
+            oldLine = parseInt(hunkMatch[1]);
+            newLine = parseInt(hunkMatch[2]);
+            hunk = { header: line, context: hunkMatch[3].trim(), lines: [] };
+            current.hunks.push(hunk);
+            continue;
+        }
+        if (!hunk) continue;
+
+        if (line.startsWith('+')) {
+            hunk.lines.push({ type: 'add', content: line.slice(1), oldNum: null, newNum: newLine++ });
+        } else if (line.startsWith('-')) {
+            hunk.lines.push({ type: 'del', content: line.slice(1), oldNum: oldLine++, newNum: null });
+        } else if (line.startsWith('\\')) {
+            hunk.lines.push({ type: 'meta', content: line, oldNum: null, newNum: null });
+        } else {
+            hunk.lines.push({ type: 'ctx', content: line.slice(1), oldNum: oldLine++, newNum: newLine++ });
+        }
+    }
+    if (current) files.push(current);
+    return files;
+}
+
+function matchLineHint(hint, allLines) {
+    if (!hint) return -1;
+    const h = hint.toLowerCase().replace(/\s+/g, ' ').trim();
+    const tokens = h.match(/[a-zA-Z_]\w+(?:\.\w+)*/g) || [];
+    if (!tokens.length) return -1;
+    let bestIdx = -1, bestScore = 0;
+    for (let i = 0; i < allLines.length; i++) {
+        const line = allLines[i];
+        if (line.type === 'meta') continue;
+        const lc = (line.content || '').toLowerCase();
+        let score = 0;
+        for (const tok of tokens) {
+            if (lc.includes(tok)) score++;
+        }
+        if (line.type === 'add' || line.type === 'del') score += 0.5;
+        if (score > bestScore) { bestScore = score; bestIdx = i; }
+    }
+    return bestScore >= 1 ? bestIdx : -1;
+}
+
+function renderFile(file, fileComments, fileIdx) {
+    const container = document.createElement('div');
+    container.className = 'diff-file';
+    container.id = 'diff-file-' + fileIdx;
+
+    const fname = normalizeFilename(file.newName || file.oldName);
+
+    const header = document.createElement('div');
+    header.className = 'diff-file-header';
+    let label = fname;
+    if (file.isNew) label += ' (new)';
+    if (file.isDeleted) label += ' (deleted)';
+    header.innerHTML = `<span class="diff-filename">${escHtml(label)}</span>`;
+    container.appendChild(header);
+
+    if (file.isBinary) {
+        const p = document.createElement('p');
+        p.className = 'diff-binary';
+        p.textContent = 'Binary file changed';
+        container.appendChild(p);
+        return container;
+    }
+
+    const allLines = [];
+    file.hunks.forEach(h => allLines.push(...h.lines));
+
+    const commentsByLineIdx = {};
+    const unmatchedComments = [];
+    fileComments.forEach(c => {
+        const idx = matchLineHint(c.line_hint, allLines);
+        if (idx >= 0) {
+            if (!commentsByLineIdx[idx]) commentsByLineIdx[idx] = [];
+            commentsByLineIdx[idx].push(c);
+        } else {
+            unmatchedComments.push(c);
+        }
+    });
+
+    const table = document.createElement('table');
+    table.className = 'diff-table';
+    let globalIdx = 0;
+
+    file.hunks.forEach(hunk => {
+        const hunkRow = document.createElement('tr');
+        hunkRow.className = 'diff-hunk-header';
+        hunkRow.innerHTML = `<td class="diff-ln"></td><td class="diff-ln"></td><td class="diff-code diff-hunk-label">${escHtml(hunk.header)}</td>`;
+        table.appendChild(hunkRow);
+
+        hunk.lines.forEach(line => {
+            const tr = document.createElement('tr');
+            tr.className = 'diff-line diff-line-' + line.type;
+            const oldTd = document.createElement('td');
+            oldTd.className = 'diff-ln';
+            oldTd.textContent = line.oldNum ?? '';
+            const newTd = document.createElement('td');
+            newTd.className = 'diff-ln';
+            newTd.textContent = line.newNum ?? '';
+            const codeTd = document.createElement('td');
+            codeTd.className = 'diff-code';
+            const prefix = line.type === 'add' ? '+' : line.type === 'del' ? '-' : line.type === 'meta' ? '' : ' ';
+            codeTd.textContent = prefix + (line.content || '');
+            tr.appendChild(oldTd);
+            tr.appendChild(newTd);
+            tr.appendChild(codeTd);
+            table.appendChild(tr);
+
+            const lineComments = commentsByLineIdx[globalIdx];
+            if (lineComments) {
+                lineComments.forEach(c => {
+                    table.appendChild(makeCommentRow(c, line.type));
+                });
+            }
+            globalIdx++;
+        });
+    });
+
+    container.appendChild(table);
+
+    if (unmatchedComments.length) {
+        const footer = document.createElement('div');
+        footer.className = 'diff-file-comments';
+        unmatchedComments.forEach(c => {
+            footer.appendChild(makeCommentCard(c));
+        });
+        container.appendChild(footer);
+    }
+
+    return container;
+}
+
+function makeCommentRow(c, lineType) {
+    const tr = document.createElement('tr');
+    const onContext = (lineType === 'ctx');
+    tr.className = 'diff-comment-row diff-comment-row-' + (c.severity || 'info') + (onContext ? ' diff-comment-row-context' : '');
+    const td = document.createElement('td');
+    td.colSpan = 3;
+    td.className = 'diff-comment-cell';
+    td.appendChild(makeCommentCard(c, onContext));
+    tr.appendChild(td);
+    return tr;
+}
+
+function makeCommentCard(c, onContext) {
+    const card = document.createElement('div');
+    const contextClass = onContext ? ' diff-comment-on-context' : '';
+    card.className = 'diff-comment diff-comment-' + (c.severity || 'info') + contextClass;
+    const contextLabel = onContext ? '<span class="diff-comment-ctx-label">existing code</span>' : '';
+    card.innerHTML =
+        `<div class="diff-comment-header">` +
+        `<span class="diff-comment-severity">${escHtml(c.severity || 'info')}</span>` +
+        `<span class="diff-comment-agent">${escHtml(agentLabel(c.agent))}</span>` +
+        contextLabel +
+        (c.line_hint ? `<span class="diff-comment-hint">${escHtml(c.line_hint)}</span>` : '') +
+        `</div>` +
+        `<div class="diff-comment-body">${escHtml(c.comment)}</div>` +
+        (c.suggestion ? `<div class="diff-comment-suggestion"><strong>Suggestion:</strong> ${escHtml(c.suggestion)}</div>` : '');
+    return card;
+}
+
+function agentLabel(agent) {
+    return { contextual_review: 'Contextual', unbiased_review: 'Unbiased', synthesis: 'Synthesis', injection_scanner: 'Scanner' }[agent] || agent;
+}
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+// ── Feedback form ───────────────────────────────────────────────
+document.querySelectorAll('input[name="verdict_correct"]').forEach(r => {
+    r.addEventListener('change', () => {
+        document.getElementById('correct-verdict-group').style.display =
+            r.value === 'false' ? 'block' : 'none';
+    });
+});
+
+document.getElementById('feedback-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const data = Object.fromEntries(form.entries());
+    data.verdict_correct = data.verdict_correct === 'true';
+    const resp = await fetch('/api/review/{{ review.review_id }}/feedback', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    });
+    const result = document.getElementById('feedback-result');
+    result.classList.remove('hidden');
+    if (resp.ok) {
+        result.textContent = 'Feedback recorded. Thank you!';
+        result.className = 'feedback-success';
+    } else {
+        result.textContent = 'Failed to save feedback.';
+        result.className = 'feedback-error';
+    }
+});
+
+function copyComment(btn) {
+    const pre = btn.previousElementSibling;
+    navigator.clipboard.writeText(pre.textContent);
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy to clipboard', 2000);
+}
+
+// ── Rerun / Delete ──────────────────────────────────────────────
+async function rerunReview() {
+    const btn = document.getElementById('rerun-btn');
+    btn.disabled = true;
+    btn.textContent = '...';
+    try {
+        const resp = await fetch('/api/review/{{ review.review_id }}/rerun', { method: 'POST' });
+        const data = await resp.json();
+        if (resp.ok && data.review_id) {
+            window.location.href = '/review/' + data.review_id;
+        } else {
+            throw new Error(data.detail || 'Rerun failed');
+        }
+    } catch (err) {
+        alert('Rerun failed: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = '⟳';
+    }
+}
+
+async function deleteReview() {
+    if (!confirm('Delete this review and all its results?')) return;
+    const btn = document.getElementById('delete-btn');
+    btn.disabled = true;
+    try {
+        const resp = await fetch('/api/review/{{ review.review_id }}', { method: 'DELETE' });
+        if (resp.ok) {
+            window.location.href = '/';
+        } else {
+            const data = await resp.json();
+            throw new Error(data.detail || 'Delete failed');
+        }
+    } catch (err) {
+        alert('Delete failed: ' + err.message);
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}
