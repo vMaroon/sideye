@@ -18,23 +18,31 @@ class Config:
     # Claude backend: "cli" (default, uses Pro subscription) or "api" (needs ANTHROPIC_API_KEY)
     CLAUDE_BACKEND: str = os.getenv("CLAUDE_BACKEND", "cli")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
-    CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6-20250514")
-    CLAUDE_HAIKU: str = "claude-haiku-4-5-20251001"
-    CLAUDE_SONNET: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6-20250514")
-    CLAUDE_OPUS: str = "claude-opus-4-6-20250514"
+
+    # Model IDs — CLI uses short names, API uses full dated names.
+    _MODELS: dict = {
+        "cli":  {"haiku": "claude-haiku-4-5", "sonnet": "claude-sonnet-4-6", "opus": "claude-opus-4-6"},
+        "api":  {"haiku": "claude-haiku-4-5-20251001", "sonnet": "claude-sonnet-4-6-20250514", "opus": "claude-opus-4-6-20250514"},
+    }
+    _m: dict = _MODELS.get(os.getenv("CLAUDE_BACKEND", "cli"), _MODELS["api"])
+
+    CLAUDE_HAIKU: str = _m["haiku"]
+    CLAUDE_SONNET: str = _m["sonnet"]
+    CLAUDE_OPUS: str = _m["opus"]
+    CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", _m["sonnet"])
 
     REVIEW_MODES: dict = {
         "quick": {
-            "default": "claude-haiku-4-5-20251001",
+            "default": _m["haiku"],
         },
         "standard": {
-            "default": os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6-20250514"),
-            "injection_scanner": "claude-haiku-4-5-20251001",
-            "synthesis": "claude-opus-4-6-20250514",
+            "default": os.getenv("CLAUDE_MODEL", _m["sonnet"]),
+            "injection_scanner": _m["haiku"],
+            "synthesis": _m["opus"],
         },
         "thorough": {
-            "default": "claude-opus-4-6-20250514",
-            "injection_scanner": "claude-haiku-4-5-20251001",
+            "default": _m["opus"],
+            "injection_scanner": _m["haiku"],
         },
     }
 
